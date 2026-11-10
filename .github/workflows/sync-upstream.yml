@@ -1,0 +1,35 @@
+name: Sync Upstream
+on:
+  schedule:
+    - cron: '0 2 * * *' # 每天 UTC 02:00（北京时间 10:00）执行
+  workflow_dispatch: # 支持手动点按钮触发同步
+
+permissions:
+  contents: write # 必须，允许push代码
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取完整git历史，rebase需要
+          # 注意：不要设 persist-credentials: false，
+          # 后面的 git push 依赖 checkout 保存的 GITHUB_TOKEN 认证
+
+      - name: Sync upstream
+        env:
+          UPSTREAM_REPO: openai/codex # 上游源仓库 owner/name
+          UPSTREAM_BRANCH: main       # 源仓分支
+          TARGET_BRANCH: main         # fork要同步的分支
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/${UPSTREAM_REPO}.git
+          git fetch upstream
+          git checkout ${TARGET_BRANCH}
+          # 优先 rebase，保持提交线干净；如果想要merge就改成 git merge upstream/${UPSTREAM_BRANCH}
+          git rebase upstream/${UPSTREAM_BRANCH}
+          git push --force-with-lease origin ${TARGET_BRANCH}
